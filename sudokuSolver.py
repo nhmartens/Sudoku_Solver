@@ -2,20 +2,35 @@ import copy
 
 def sudokuSolver(input):
     sudoku = copy.deepcopy(input)
+    solutions_count = 0
     def possible(row, column, number):
         for i in range(len(sudoku)):
-            if sudoku[row][i] == number or sudoku[i][column] == number:
+            if i != column and sudoku[row][i] == number: 
                 return False
-        
+            
+            if i != row and sudoku[i][column] == number: 
+                return False
+            
         rowSection = (row // 3) * 3
         columnSection = (column // 3) * 3
         for i in range(3):
             for j in range(3):
-                if sudoku[rowSection + i][columnSection + j] == number:
+                if (rowSection + i != row or columnSection + j != column) and sudoku[rowSection + i][columnSection + j] == number:
                     return False
         return True
+    
+    def validGrid():
+        for row_index, row in enumerate(sudoku):
+            for col_index, number in enumerate(row):
+                if number != 0:
+                    if not possible(row_index, col_index, number):
+                        return False
+        return True
+
 
     def solveBacktracking():
+        nonlocal solutions_count
+        
         for row in range(len(sudoku)):
             for col in range(len(sudoku)):
                 if sudoku[row][col] == 0:
@@ -27,14 +42,18 @@ def sudokuSolver(input):
                             sudoku[row][col] = 0
                     return False
         return True
-    if solveBacktracking():
-        print("Solution found:")
-        for row in sudoku:
-            print(row)
-        print("")
-        return sudoku
+    if validGrid():
+        if solveBacktracking():
+            print("Solution found:")
+            for row in sudoku:
+                print(row)
+            print("")
+            return sudoku
+        else:
+            print("No solution has been found")
+            return None
     else:
-        print("No solution has been found")
+        print("Invalid Grid. Most likely a number has been inaccurately detected")
         return None
 
 
@@ -90,3 +109,17 @@ def solve(input):
                 updateMemory(key[0], key[1], digit)
                 break
     return input
+
+if __name__ == "__main__":
+    sudoku = [
+        [9, 0, 5, 0, 6, 0, 0, 0, 0],
+        [0, 0, 4, 0, 0, 1, 5, 0, 7],
+        [0, 0, 0, 0, 0, 0, 0, 0, 3],
+        [0, 0, 9, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 8, 0, 0, 2, 0, 0],
+        [6, 0, 0, 0, 0, 7, 8, 5, 0],
+        [0, 6, 0, 0, 0, 0, 0, 0, 0],
+        [0, 7, 0, 0, 0, 5, 3, 8, 0],
+        [1, 0, 0, 0, 4, 0, 0, 0, 0]
+        ]
+    sudokuSolver(sudoku)

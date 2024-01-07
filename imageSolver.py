@@ -62,7 +62,7 @@ def solveImage(image_path):
     contour, hier = cv2.findContours(close,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
     for cnt in contour:
         x,y,w,h = cv2.boundingRect(cnt)
-        if h/w > 5:
+        if h/w > 12:
             cv2.drawContours(close,[cnt],0,255,-1)
         else:
             cv2.drawContours(close,[cnt],0,0,-1)
@@ -80,7 +80,7 @@ def solveImage(image_path):
     contour, hier = cv2.findContours(close,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
     for cnt in contour:
         x,y,w,h = cv2.boundingRect(cnt)
-        if w/h > 5:
+        if w/h > 12:
             cv2.drawContours(close,[cnt],0,255,-1)
         else:
             cv2.drawContours(close,[cnt],0,0,-1)
@@ -101,33 +101,47 @@ def solveImage(image_path):
     res = cv2.bitwise_or(res, corner_mask)
 
     # Correcting defects
-    contour, hier = cv2.findContours(res,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-    centroids = []
-    for cnt in contour:
-        mom = cv2.moments(cnt)
-        if mom['m00']:
-            (x,y) = int(mom['m10']/mom['m00']), int(mom['m01']/mom['m00'])
-        else:
-            (x,y) = int(mom['m10']), int(mom['m01'])
-        cv2.circle(img,(x,y),4,(0,255,0),-1)
-        centroids.append((x,y))
-    centroids = np.array(centroids,dtype = np.float32)
-    c = centroids.reshape((100,2))
-    c2 = c[np.argsort(c[:,1])]
+    try:
+        contour, hier = cv2.findContours(res,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+        centroids = []
+        for cnt in contour:
+            mom = cv2.moments(cnt)
+            if mom['m00']:
+                (x,y) = int(mom['m10']/mom['m00']), int(mom['m01']/mom['m00'])
+            else:
+                (x,y) = int(mom['m10']), int(mom['m01'])
+            cv2.circle(img,(x,y),4,(0,255,0),-1)
+            centroids.append((x,y))
+        centroids = np.array(centroids,dtype = np.float32)
+        c = centroids.reshape((100,2))
+        c2 = c[np.argsort(c[:,1])]
 
-    b = np.vstack([c2[i*10:(i+1)*10][np.argsort(c2[i*10:(i+1)*10,0])] for i in range(10)])
-    bm = b.reshape((10,10,2))
+        b = np.vstack([c2[i*10:(i+1)*10][np.argsort(c2[i*10:(i+1)*10,0])] for i in range(10)])
+        bm = b.reshape((10,10,2))
 
-    output = np.zeros((cell_size * num_cells, cell_size * num_cells,3),np.uint8)
-    for i,j in enumerate(b):
-        ri = int(i/10)
-        ci = i%10
-        if ci != 9 and ri!=9:
-            src = bm[ri:ri+2, ci:ci+2 , :].reshape((4,2))
-            dst = np.array( [ [ci*cell_size,ri*cell_size],[(ci+1)*cell_size-1,ri*cell_size],[ci*cell_size,(ri+1)*cell_size-1],[(ci+1)*cell_size-1,(ri+1)*cell_size-1] ], np.float32)
-            retval = cv2.getPerspectiveTransform(src,dst)
-            warp = cv2.warpPerspective(res2,retval,(cell_size * num_cells, cell_size * num_cells))
-            output[ri*cell_size:(ri+1)*cell_size-1 , ci*cell_size:(ci+1)*cell_size-1] = warp[ri*cell_size:(ri+1)*cell_size-1 , ci*cell_size:(ci+1)*cell_size-1].copy()
+        output = np.zeros((cell_size * num_cells, cell_size * num_cells,3),np.uint8)
+        for i,j in enumerate(b):
+            ri = int(i/10)
+            ci = i%10
+            if ci != 9 and ri!=9:
+                src = bm[ri:ri+2, ci:ci+2 , :].reshape((4,2))
+                dst = np.array([[ci*cell_size,ri*cell_size],[(ci+1)*cell_size-1,ri*cell_size],[ci*cell_size,(ri+1)*cell_size-1],[(ci+1)*cell_size-1,(ri+1)*cell_size-1] ], np.float32)
+                retval = cv2.getPerspectiveTransform(src,dst)
+                warp = cv2.warpPerspective(res2,retval,(cell_size * num_cells, cell_size * num_cells))
+                output[ri*cell_size:(ri+1)*cell_size-1 , ci*cell_size:(ci+1)*cell_size-1] = warp[ri*cell_size:(ri+1)*cell_size-1 , ci*cell_size:(ci+1)*cell_size-1].copy()
+    except ValueError:
+        epsilon = 0.02 * cv2.arcLength(best_cnt, True)
+        approx = cv2.approxPolyDP(best_cnt, epsilon, True)
+        corner_points = approx.reshape(-1, 2)
+        print(len(corner_points))
+        trapezoid_vertices = np.float32(corner_points)
+        trapezoid_vertices = trapezoid_vertices[np.argsort(trapezoid_vertices[:,1])]  
+        trapezoid_vertices = np.vstack([trapezoid_vertices[i*2:(i+1)*2][np.argsort(trapezoid_vertices[i*2:(i+1)*2,0])] for i in range(2)])
+        
+        square_vertices = np.float32([[0, 0], [cell_size * num_cells - 1, 0], [0, cell_size * num_cells - 1], [cell_size * num_cells - 1, cell_size * num_cells - 1]])
+        retval = cv2.getPerspectiveTransform(trapezoid_vertices, square_vertices)
+        output = cv2.warpPerspective(res2, retval, (cell_size * num_cells, cell_size * num_cells))
+        
 
     output = cv2.GaussianBlur(output, (5, 5), 0)
 
@@ -143,7 +157,7 @@ def solveImage(image_path):
         roi = output[startY:endY, startX:endX]
 
         # Apply OCR to the ROI
-        results = reader.readtext(roi, beamWidth=10)
+        results = reader.readtext(roi, beamWidth=10, allowlist ='0123456789')
         
         row = int(startY/cell_size)
         column = int(startX/cell_size)
@@ -151,7 +165,7 @@ def solveImage(image_path):
         # Process OCR results
         if results:
             for a in results:
-                matrix[int(startY/cell_size)][int(startX/cell_size)] = int(a[1])
+                matrix[row][column] = int(a[1])
     
     print("Detected Sudoku from Image:")
     for row in matrix:  
@@ -164,4 +178,4 @@ def solveImage(image_path):
         printSolution(output, matrix, solution, image_path)
 
 if __name__ == "__main__":
-    solveImage("./Unsolved_Sudokus/sudoku_3.png")
+    solveImage("./Unsolved_Sudokus/sudoku_8.png")
