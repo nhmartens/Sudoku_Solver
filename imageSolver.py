@@ -133,7 +133,6 @@ def solveImage(image_path):
         epsilon = 0.02 * cv2.arcLength(best_cnt, True)
         approx = cv2.approxPolyDP(best_cnt, epsilon, True)
         corner_points = approx.reshape(-1, 2)
-        print(len(corner_points))
         trapezoid_vertices = np.float32(corner_points)
         trapezoid_vertices = trapezoid_vertices[np.argsort(trapezoid_vertices[:,1])]  
         trapezoid_vertices = np.vstack([trapezoid_vertices[i*2:(i+1)*2][np.argsort(trapezoid_vertices[i*2:(i+1)*2,0])] for i in range(2)])
